@@ -1,0 +1,8 @@
+{
+  "name": "Remix Mayflower Restaurant & Reservations",
+  "description": "Restaurant website, authentic food and drinks menu, and online table reservations for The Mayflower in Chennai.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
