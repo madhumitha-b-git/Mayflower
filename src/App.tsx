@@ -14,8 +14,10 @@ import { AuthModal } from './components/AuthModal';
 import { LoyaltyDashboardModal } from './components/LoyaltyDashboardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ActiveModalType, UserProfile } from './types';
-import { getCurrentUser, setCurrentUserSession, WelcomeEmailData } from './data/userStorage';
+import { WelcomeEmailData } from './data/userStorage';
 import { RoleDashboard } from './components/dashboards/RoleDashboard';
+import { getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
+import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 export default function App() {
   const [activeView, setActiveView] = useState<'website' | 'reservations'>('website');
@@ -24,12 +26,20 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [welcomeEmail, setWelcomeEmail] = useState<WelcomeEmailData | null>(null);
 
-  // Load user session from local JSON storage
+  // Load user session from Supabase on mount
   useEffect(() => {
-    const user = getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-    }
+    if (!isSupabaseConfigured) return;
+    getSupabaseCurrentUser().then((user) => {
+      if (user) setCurrentUser(user);
+    }).catch(() => {});
+
+    // Keep session in sync when auth state changes (e.g. token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setCurrentUser(null);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const scrollToSection = (sectionId: string) => {
@@ -68,7 +78,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setCurrentUserSession(null);
+    supabaseLogout();
     setCurrentUser(null);
     setWelcomeEmail(null);
     setActiveModal('none');
