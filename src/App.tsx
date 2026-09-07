@@ -80,13 +80,20 @@ export default function App() {
 
   const isStaffRole = currentUser && currentUser.role && currentUser.role !== 'Customer';
 
-  // Show role-specific dashboard for staff users
+  // Redirect staff away from loyalty modal if it somehow gets opened
+  useEffect(() => {
+    if (isStaffRole && activeModal === 'loyalty') {
+      setActiveModal('none');
+    }
+  }, [isStaffRole, activeModal]);
+
+  // Show role-specific dashboard for staff users — full page takeover
   if (isStaffRole) {
     return (
       <RoleDashboard
         user={currentUser!}
         onLogout={handleLogout}
-        onOpenReservations={() => { setCurrentUserSession(null); }}
+        onOpenReservations={handleOpenReservations}
       />
     );
   }
