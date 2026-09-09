@@ -46,6 +46,7 @@ export interface LocationOutlet {
   icon: string;
   mapCoordinates: { x: number; y: number }; // Percentage for interactive map
   highlights: string[];
+  gmapUrl?: string;
 }
 
 export type SeatingAreaType = 'Garden' | 'Window' | 'Main Dining' | 'Private Space';

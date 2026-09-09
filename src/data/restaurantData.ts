@@ -670,7 +670,8 @@ export const OUTLETS: LocationOutlet[] = [
     image: 'https://swirllifestyle.com/wp-content/uploads/2024/03/mayflower-1.jpg',
     icon: 'Flower2',
     mapCoordinates: { x: 52, y: 48 },
-    highlights: ['Glasshouse Seating', 'Valet Parking', 'Outdoor Courtyard', 'Pet Friendly']
+    highlights: ['Glasshouse Seating', 'Valet Parking', 'Outdoor Courtyard', 'Pet Friendly'],
+    gmapUrl: 'https://maps.google.com/?q=Mayflower+17+Kasturi+Rangan+Rd+Poes+Garden+Alwarpet+Chennai'
   },
   {
     id: 'palavakkam',
@@ -683,7 +684,8 @@ export const OUTLETS: LocationOutlet[] = [
     image: 'https://swirllifestyle.com/wp-content/uploads/2024/03/mayflower-2.jpg',
     icon: 'Waves',
     mapCoordinates: { x: 62, y: 72 },
-    highlights: ['Beach Breeze', 'Outdoor Cabanas', 'Wood-Fired Pizza', 'Ample Parking']
+    highlights: ['Beach Breeze', 'Outdoor Cabanas', 'Wood-Fired Pizza', 'Ample Parking'],
+    gmapUrl: 'https://maps.google.com/?q=Mayflower+28+MGR+Salai+Palavakkam+Chennai'
   },
   {
     id: 'egmore',
@@ -696,7 +698,8 @@ export const OUTLETS: LocationOutlet[] = [
     image: 'https://swirllifestyle.com/wp-content/uploads/2024/03/mayflower-3.jpg',
     icon: 'Coffee',
     mapCoordinates: { x: 48, y: 38 },
-    highlights: ['Fresh Coffee Bar', 'Quiet Study Tables', 'Art Gallery Wall', 'Wheelchair Friendly']
+    highlights: ['Fresh Coffee Bar', 'Quiet Study Tables', 'Art Gallery Wall', 'Wheelchair Friendly'],
+    gmapUrl: 'https://maps.google.com/?q=Mayflower+57+Gandhi+Irwin+Road+Egmore+Chennai'
   },
   {
     id: 'anna-nagar',
@@ -709,7 +712,8 @@ export const OUTLETS: LocationOutlet[] = [
     image: 'https://swirllifestyle.com/wp-content/uploads/2024/03/mayflower-slider-2.jpg',
     icon: 'Sparkles',
     mapCoordinates: { x: 38, y: 28 },
-    highlights: ['Open Terrace', 'Private Mezzanine', 'Group Dining', 'Dessert Counter']
+    highlights: ['Open Terrace', 'Private Mezzanine', 'Group Dining', 'Dessert Counter'],
+    gmapUrl: 'https://maps.google.com/?q=Mayflower+J9+6th+Ave+J+Block+Annanagar+East+Chennai'
   }
 ];
 

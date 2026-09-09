@@ -1,5 +1,80 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #02150c;
+  --color-primary-container: #152a20;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #7b9285;
+  --color-primary-fixed: #d0e8d9;
+  --color-primary-fixed-dim: #b4ccbd;
+  --color-on-primary-fixed-variant: #364b40;
+  --color-on-primary-fixed: #0a1f16;
+  --color-inverse-primary: #b4ccbd;
+
+  --color-secondary: #745b20;
+  --color-secondary-container: #ffdb94;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #795f24;
+  --color-secondary-fixed: #ffdf9f;
+  --color-secondary-fixed-dim: #e4c27d;
+  --color-on-secondary-fixed-variant: #5a4309;
+  --color-on-secondary-fixed: #261a00;
+
+  --color-tertiary: #1a0f00;
+  --color-tertiary-container: #342300;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #ab8848;
+  --color-tertiary-fixed: #ffdea7;
+  --color-tertiary-fixed-dim: #e8c17b;
+  --color-on-tertiary-fixed-variant: #5d4206;
+  --color-on-tertiary-fixed: #271900;
+
+  --color-surface: #fbf9f5;
+  --color-surface-dim: #dbdad6;
+  --color-surface-bright: #fbf9f5;
+  --color-surface-tint: #4d6357;
+  --color-surface-variant: #e4e2de;
+  --color-surface-container: #efeeea;
+  --color-surface-container-low: #f5f3ef;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-high: #eae8e4;
+  --color-surface-container-highest: #e4e2de;
+
+  --color-on-surface: #1b1c1a;
+  --color-on-surface-variant: #424844;
+  --color-background: #fbf9f5;
+  --color-on-background: #1b1c1a;
+
+  --color-inverse-surface: #30312e;
+  --color-inverse-on-surface: #f2f0ed;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+
+  --color-outline: #737874;
+  --color-outline-variant: #c2c8c2;
+
+  --spacing-space-2xs: 0.25rem;
+  --spacing-space-xs: 0.5rem;
+  --spacing-space-sm: 0.75rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2rem;
+  --spacing-space-2xl: 3rem;
+  --spacing-space-3xl: 4.5rem;
+  --spacing-space-4xl: 6rem;
+
+  --spacing-margin-mobile: 1.25rem;
+  --spacing-margin-tablet: 2.5rem;
+  --spacing-margin-desktop: 5rem;
+
+  --spacing-gutter-mobile: 1rem;
+  --spacing-gutter-tablet: 1.5rem;
+  --spacing-gutter-desktop: 2.5rem;
+}
+
 @layer base {
   :root {
     --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
@@ -30,6 +105,19 @@
   }
 }
 
+/* Stitch custom typography helper classes */
+.font-display-hero { font-family: 'Playfair Display', serif; font-size: 56px; line-height: 64px; letter-spacing: -0.02em; font-weight: 400; }
+.font-headline-lg { font-family: 'Playfair Display', serif; font-size: 40px; line-height: 48px; letter-spacing: -0.015em; font-weight: 500; }
+.font-headline-md { font-family: 'Playfair Display', serif; font-size: 28px; line-height: 36px; font-weight: 500; }
+.font-headline-sm { font-family: 'Playfair Display', serif; font-size: 22px; line-height: 30px; font-weight: 600; }
+.font-title-editorial { font-family: 'Playfair Display', serif; font-size: 18px; line-height: 26px; letter-spacing: 0.02em; font-weight: 600; }
+.font-body-lg { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; line-height: 30px; font-weight: 400; }
+.font-body-md { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; line-height: 24px; font-weight: 400; }
+.font-body-sm { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; line-height: 20px; font-weight: 400; }
+.font-caption { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; line-height: 18px; font-weight: 400; }
+.font-label-caps { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; line-height: 16px; letter-spacing: 0.14em; font-weight: 700; }
+.font-label-numeric { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; line-height: 18px; letter-spacing: 0.04em; font-weight: 600; }
+
 /* Custom scrollbar hiding utility */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -38,5 +126,6 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 
 
