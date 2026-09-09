@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { UserProfile, UserRole, LoyaltyTier } from '../types';
+import { UserProfile, UserRole, LoyaltyTier, PointTransaction, UserReservationRecord } from '../types';
 
 export interface AuthResult {
   success: boolean;
@@ -15,7 +15,10 @@ export const supabaseLogin = async (email: string, password: string): Promise<Au
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user) {
-    return { success: false, message: error?.message || 'Login failed.' };
+    const message = error?.message?.toLowerCase().includes('invalid login')
+      ? 'We could not find an account with those details. New to Mayflower? Register your account first.'
+      : error?.message || 'Login failed.';
+    return { success: false, message };
   }
 
   const profile = await fetchUserProfile(data.user.id);
@@ -32,10 +35,31 @@ export const supabaseRegister = async (
   password: string,
   name: string
 ): Promise<AuthResult> => {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (!isSupabaseConfigured) {
+    return { success: false, message: 'Supabase is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const { data: { user: signedInUser } } = await supabase.auth.getUser();
+  if (signedInUser?.email?.toLowerCase() === normalizedEmail) {
+    return { success: false, message: 'This email is already registered. Please sign in instead.' };
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email: normalizedEmail,
+    password,
+    options: { data: { name: name || normalizedEmail.split('@')[0] } },
+  });
 
   if (error || !data.user) {
-    return { success: false, message: error?.message || 'Registration failed.' };
+    const isDuplicate = /already|registered|exists/i.test(error?.message || '');
+    return { success: false, message: isDuplicate ? 'This email is already registered. Please sign in instead.' : error?.message || 'Registration failed.' };
+  }
+
+  // With Supabase email-confirmation enabled, an existing email is deliberately
+  // returned without a new identity. Treat it as a duplicate instead of showing success.
+  if (data.user.identities?.length === 0) {
+    return { success: false, message: 'This email is already registered. Please sign in instead.' };
   }
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
@@ -50,11 +74,19 @@ export const supabaseRegister = async (
     role: 'Customer' as UserRole,
     reward_points: 200,
     tier: 'Green' as LoyaltyTier,
-    total_visits: 1,
+    total_visits: 0,
     joined_date: todayStr,
+    transactions: [{
+      id: `signup-${data.user.id}`,
+      type: 'earned_signup',
+      points: 200,
+      description: 'Welcome bonus for registering your Mayflower account',
+      date: todayStr,
+    }],
+    reservations: [],
   };
 
-  const { error: insertError } = await supabase.from('user_profiles').insert(newProfile);
+  const { error: insertError } = await supabase.from('user_profiles').upsert(newProfile, { onConflict: 'id', ignoreDuplicates: true });
 
   if (insertError) {
     return { success: false, message: insertError.message };
@@ -79,7 +111,8 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
     name: data.name,
     email: data.email,
     phone: data.phone ?? '',
-    role: (data.role as UserRole) ?? 'Customer',
+    // This public website is a customer portal. Staff use the separate back-office.
+    role: 'Customer' as UserRole,
     rewardPoints: data.reward_points ?? 0,
     tier: (data.tier as LoyaltyTier) ?? 'Green',
     totalVisits: data.total_visits ?? 0,
@@ -87,6 +120,30 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
     transactions: data.transactions ?? [],
     reservations: data.reservations ?? [],
   };
+};
+
+export const addReservationForCurrentUser = async (
+  user: UserProfile,
+  reservation: UserReservationRecord
+): Promise<AuthResult> => {
+  const bookedAt = reservation.bookedAt;
+  const reservationBonus: PointTransaction = {
+    id: `reservation-${reservation.id}`,
+    type: 'earned_visit',
+    points: 300,
+    description: `Seat reservation bonus (${reservation.outlet} - ${reservation.bookingCode})`,
+    date: bookedAt,
+  };
+  const { error } = await supabase.rpc('create_customer_reservation', {
+    reservation_record: reservation,
+    transaction_record: reservationBonus,
+  });
+
+  if (error) return { success: false, message: error.message };
+  const updatedUser = await fetchUserProfile(user.id);
+  return updatedUser
+    ? { success: true, user: updatedUser }
+    : { success: false, message: 'Reservation saved, but the updated account could not be loaded.' };
 };
 
 /** Get the currently authenticated Supabase session user profile */

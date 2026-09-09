@@ -15,8 +15,7 @@ import { LoyaltyDashboardModal } from './components/LoyaltyDashboardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ActiveModalType, UserProfile } from './types';
 import { WelcomeEmailData } from './data/userStorage';
-import { RoleDashboard } from './components/dashboards/RoleDashboard';
-import { getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
+import { fetchUserProfile, getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
 export default function App() {
@@ -37,9 +36,21 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setCurrentUser(null);
+      } else {
+        fetchUserProfile(session.user.id).then(setCurrentUser).catch(() => {});
       }
     });
-    return () => subscription.unsubscribe();
+    const profileChannel = supabase
+      .channel('current-customer-profile')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, (payload) => {
+        const userId = (payload.new as { id?: string }).id;
+        if (userId) fetchUserProfile(userId).then((user) => user && setCurrentUser(user)).catch(() => {});
+      })
+      .subscribe();
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(profileChannel);
+    };
   }, []);
 
   const scrollToSection = (sectionId: string) => {
@@ -88,26 +99,7 @@ export default function App() {
     setCurrentUser(updatedUser);
   };
 
-  const isStaffRole = currentUser && currentUser.role && currentUser.role !== 'Customer';
-
-  // Redirect staff away from loyalty modal if it somehow gets opened
-  useEffect(() => {
-    if (isStaffRole && activeModal === 'loyalty') {
-      setActiveModal('none');
-    }
-  }, [isStaffRole, activeModal]);
-
   // Show role-specific dashboard for staff users — full page takeover
-  if (isStaffRole) {
-    return (
-      <RoleDashboard
-        user={currentUser!}
-        onLogout={handleLogout}
-        onOpenReservations={handleOpenReservations}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1A1A1A] selection:bg-[#D1CDBC] selection:text-[#1A1A1A] pb-16 md:pb-0">
       {/* Sticky Top Navigation Bar */}
@@ -167,6 +159,7 @@ export default function App() {
             initialOutlet={targetOutlet}
             currentUser={currentUser}
             onUpdateUser={handleUpdateUser}
+            onRequestSignIn={() => setActiveModal('auth')}
             onBackToWebsite={handleBackToWebsite}
           />
         )}

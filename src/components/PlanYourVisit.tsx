@@ -4,19 +4,19 @@ import { OUTLETS, RESTAURANT_TABLES, TIME_SLOTS } from '../data/restaurantData';
 import { 
   Calendar, Users, Sparkles, MapPin, Clock, ArrowRight, ArrowLeft, 
   CheckCircle2, AlertCircle, Heart, Download, RefreshCw, X, Shield, 
-  Compass, Utensils, Layout
+  Compass, Utensils
 } from 'lucide-react';
 
 import { UserProfile, UserReservationRecord } from '../types';
-import { addReservationToUser } from '../data/userStorage';
+import { addReservationForCurrentUser } from '../lib/authService';
 import { getStoredTables, reserveTableForCustomer } from '../data/tableStorage';
 import { sendReservationConfirmationEmail } from '../data/emailService';
-import { ManagerFloorMap } from './ManagerFloorMap';
 
 interface PlanYourVisitProps {
   initialOutlet?: string;
   currentUser?: UserProfile | null;
   onUpdateUser?: (user: UserProfile) => void;
+  onRequestSignIn: () => void;
   onBackToWebsite: () => void;
 }
 
@@ -46,6 +46,7 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
   initialOutlet = 'Poes Garden',
   currentUser,
   onUpdateUser,
+  onRequestSignIn,
   onBackToWebsite 
 }) => {
   // Reservation wizard state
@@ -72,20 +73,14 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
   const [hoveredSpace, setHoveredSpace] = useState<SeatingAreaType | null>(null);
   const [showSavedBookings, setShowSavedBookings] = useState(false);
   const [savedBookingsList, setSavedBookingsList] = useState<any[]>([]);
-  const [showManagerFloorMap, setShowManagerFloorMap] = useState(false);
   const [liveTables, setLiveTables] = useState<RestaurantTable[]>([]);
 
   useEffect(() => {
     setLiveTables(getStoredTables());
-  }, [reservation.step, showManagerFloorMap]);
+  }, [reservation.step]);
 
   const loadSavedBookings = () => {
-    try {
-      const items = JSON.parse(localStorage.getItem('mayflower_reservations') || '[]');
-      setSavedBookingsList(items);
-    } catch {
-      setSavedBookingsList([]);
-    }
+    setSavedBookingsList(currentUser?.reservations ?? []);
   };
 
   // Helper date generators
@@ -181,19 +176,17 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
   };
 
   // Step 7: Final confirmation submission
-  const handleConfirmReservation = (e: React.FormEvent) => {
+  const handleConfirmReservation = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      onRequestSignIn();
+      return;
+    }
     if (!reservation.guestName || !reservation.guestPhone) {
       alert('Please provide your name and phone number for the reservation confirmation.');
       return;
     }
     const code = `MF-${Math.floor(2000 + Math.random() * 7000)}`;
-    const confirmedBooking = {
-      ...reservation,
-      bookingCode: code,
-      createdAt: new Date().toISOString()
-    };
-
     // Lock table status in tableStorage if a table was chosen
     if (reservation.selectedTable) {
       reserveTableForCustomer(
@@ -209,45 +202,26 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
       setLiveTables(getStoredTables());
     }
 
-    // Persist to browser localStorage
-    try {
-      const existingBookings = JSON.parse(localStorage.getItem('mayflower_reservations') || '[]');
-      localStorage.setItem('mayflower_reservations', JSON.stringify([confirmedBooking, ...existingBookings]));
-    } catch (err) {
-      console.warn('Could not save to localStorage:', err);
+    const newRecord: UserReservationRecord = {
+      id: `res-${Date.now()}`,
+      bookingCode: code,
+      outlet: reservation.selectedOutlet,
+      date: reservation.date,
+      timeSlot: reservation.timeSlot,
+      guests: reservation.guests,
+      seatingArea: reservation.seatingArea,
+      status: 'Confirmed',
+      bookedAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    };
+
+    const result = await addReservationForCurrentUser(currentUser, newRecord);
+    if (!result.success || !result.user) {
+      alert(result.message || 'We could not save your reservation. Please try again.');
+      return;
     }
-
-    // Attach to user profile if logged in
-    if (currentUser) {
-      const newRecord: UserReservationRecord = {
-        id: `res-${Date.now()}`,
-        bookingCode: code,
-        outlet: reservation.selectedOutlet,
-        date: reservation.date,
-        timeSlot: reservation.timeSlot,
-        guests: reservation.guests,
-        seatingArea: reservation.seatingArea,
-        status: 'Confirmed',
-        bookedAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      };
-
-      const updated = addReservationToUser(currentUser.id, newRecord);
-      if (updated && onUpdateUser) {
-        onUpdateUser(updated);
-      }
-    } else if (reservation.guestEmail) {
-      // Dispatch automated Gmail confirmation email for guest booking
-      sendReservationConfirmationEmail(reservation.guestEmail, reservation.guestName, {
-        id: `res-${Date.now()}`,
-        bookingCode: code,
-        outlet: reservation.selectedOutlet,
-        date: reservation.date,
-        timeSlot: reservation.timeSlot,
-        guests: reservation.guests,
-        seatingArea: reservation.seatingArea,
-        status: 'Confirmed',
-        bookedAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      });
+    onUpdateUser?.(result.user);
+    if (currentUser.email) {
+      sendReservationConfirmationEmail(currentUser.email, currentUser.name, newRecord);
     }
 
     setReservation((prev) => ({
@@ -330,21 +304,8 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
             </div>
           </div>
 
-          {/* Sanctuary Outlet Switcher & Saved Bookings & Manager Floor Map */}
+          {/* Sanctuary Outlet Switcher & Saved Bookings */}
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowManagerFloorMap(!showManagerFloorMap)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm border ${
-                showManagerFloorMap
-                  ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
-                  : 'bg-[#5A5A40] hover:bg-[#4A4A30] text-white border-[#5A5A40]'
-              }`}
-              title="Toggle Manager Visual Floor Map & Table Management Platform (PRD Section 09)"
-            >
-              <Layout className="w-3.5 h-3.5" />
-              <span>{showManagerFloorMap ? 'Customer Desk' : 'Manager Visual Floor Map'}</span>
-            </button>
-
             <button
               onClick={() => {
                 loadSavedBookings();
@@ -377,11 +338,7 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
           </div>
         </div>
 
-        {/* Manager Visual Floor Map & Real-Time Table Management Panel */}
-        {showManagerFloorMap ? (
-          <ManagerFloorMap onClose={() => setShowManagerFloorMap(false)} />
-        ) : (
-          <>
+        <>
             {/* Multi-Step Progress Tracker Bar (Steps 1 to 7) */}
             {reservation.step <= 7 && (
           <div className="mb-10">
@@ -1481,7 +1438,6 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
           </div>
         )}
         </>
-        )}
 
         {/* SAVED BOOKINGS MODAL DIALOG */}
         {showSavedBookings && (
@@ -1494,7 +1450,7 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
                   </div>
                   <div>
                     <h3 className="font-serif text-xl font-semibold text-[#1A1A1A]">My Saved Reservations</h3>
-                    <p className="text-[11px] text-[#5A5A40]">Stored locally on your browser</p>
+                    <p className="text-[11px] text-[#5A5A40]">Synced to your Mayflower account</p>
                   </div>
                 </div>
                 <button
@@ -1508,8 +1464,8 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
               <div className="flex-1 overflow-y-auto py-4 space-y-3">
                 {savedBookingsList.length === 0 ? (
                   <div className="text-center py-10 space-y-2 text-[#666666]">
-                    <p className="text-sm">No reservations saved yet on this device.</p>
-                    <p className="text-xs">Complete the 7-step booking process to confirm and save your table.</p>
+                    <p className="text-sm">No reservations saved on your account yet.</p>
+                    <p className="text-xs">Complete the booking process while signed in to see it here.</p>
                   </div>
                 ) : (
                   savedBookingsList.map((b, idx) => (
@@ -1522,16 +1478,16 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
                           {b.bookingCode}
                         </span>
                         <span className="text-[11px] text-[#5A5A40] font-medium">
-                          {b.selectedOutlet}
+                          {b.outlet}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs font-semibold text-[#1A1A1A]">
-                        <span>{b.guestName} ({b.guests} Guests)</span>
+                        <span>{b.guests} Guests</span>
                         <span>{b.date} • {b.timeSlot}</span>
                       </div>
                       <div className="text-[11px] text-[#666666] flex items-center justify-between pt-1 border-t border-[#E8E4DB]/60">
                         <span>{b.experience} • {b.selectedTable?.name || b.seatingArea}</span>
-                        <span>{b.guestPhone}</span>
+                        <span>{b.status}</span>
                       </div>
                       {(b.dietaryPreferences || b.specialOccasion) && (
                         <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
@@ -1553,19 +1509,6 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
               </div>
 
               <div className="pt-3 border-t border-[#E8E4DB] flex items-center justify-between">
-                {savedBookingsList.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (confirm('Clear your saved reservation history on this device?')) {
-                        localStorage.removeItem('mayflower_reservations');
-                        setSavedBookingsList([]);
-                      }
-                    }}
-                    className="text-xs text-red-600 hover:underline cursor-pointer"
-                  >
-                    Clear History
-                  </button>
-                )}
                 <button
                   onClick={() => setShowSavedBookings(false)}
                   className="ml-auto px-6 py-2.5 rounded-full bg-[#1A1A1A] hover:bg-[#333333] text-white text-xs font-bold transition-colors cursor-pointer"

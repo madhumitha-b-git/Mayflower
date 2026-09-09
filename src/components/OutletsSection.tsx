@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { OUTLETS } from '../data/restaurantData';
-import { MapPin, Clock, Phone, Navigation, Calendar, CheckCircle2, ChevronRight, Compass } from 'lucide-react';
+import { MapPin, Clock, Phone, Navigation, Calendar, CheckCircle2, Compass, ExternalLink } from 'lucide-react';
 
 interface OutletsSectionProps {
   onReserveOutlet: (outletName: string) => void;
@@ -34,12 +34,11 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
           
           {/* Left: Interactive Visual Map of Chennai Coastal & Urban Grid */}
           <div className="lg:col-span-5 bg-[#F5F1EB] rounded-[32px] p-6 border border-[#E8E4DB] shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center mb-4">
               <div className="flex items-center space-x-2 text-[11px] font-bold uppercase tracking-wider text-[#1A1A1A]">
                 <Compass className="w-4 h-4 text-[#5A5A40]" />
                 <span>Chennai Outlets Map</span>
               </div>
-              <span className="text-[10px] text-[#5A5A40] font-semibold uppercase tracking-wider">Click pin to explore</span>
             </div>
 
             {/* Stylized Chennai Map Graphic Canvas */}
@@ -73,15 +72,19 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
               {/* 4 Sanctuary Interactive Pins */}
               {OUTLETS.map((outlet) => {
                 const isActive = outlet.id === selectedOutletId;
+                const gmapLink = outlet.gmapUrl || `https://maps.google.com/?q=Mayflower+${encodeURIComponent(outlet.name)}+Chennai`;
                 return (
-                  <button
+                  <a
                     key={outlet.id}
+                    href={gmapLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     onClick={() => setSelectedOutletId(outlet.id)}
                     style={{ left: `${outlet.mapCoordinates.x}%`, top: `${outlet.mapCoordinates.y}%` }}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 group z-20 focus:outline-none transition-all duration-300 cursor-pointer ${
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 group z-20 transition-all duration-300 flex flex-col items-center cursor-pointer ${
                       isActive ? 'scale-125 z-30' : 'hover:scale-110'
                     }`}
-                    title={outlet.name}
+                    title={`Click to view ${outlet.name} on Google Maps`}
                   >
                     <div className="relative flex items-center justify-center">
                       <span
@@ -95,7 +98,7 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
                         className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-colors duration-200 ${
                           isActive
                             ? 'bg-[#5A5A40] text-white ring-4 ring-[#E8E4DB]'
-                            : 'bg-[#1A1A1A] text-white hover:bg-[#333333]'
+                            : 'bg-[#1A1A1A] text-white group-hover:bg-[#5A5A40]'
                         }`}
                       >
                         <MapPin className="w-3.5 h-3.5" />
@@ -104,15 +107,15 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
 
                     {/* Pin Label Tag */}
                     <div
-                      className={`mt-1 whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold transition-all shadow-sm ${
+                      className={`mt-1 whitespace-nowrap px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all shadow-md ${
                         isActive
-                          ? 'bg-[#1A1A1A] text-white'
-                          : 'bg-white text-[#1A1A1A] border border-[#E8E4DB]'
+                          ? 'bg-[#1A1A1A] text-white ring-2 ring-[#5A5A40]'
+                          : 'bg-white text-[#1A1A1A] border border-[#E8E4DB] group-hover:bg-[#1A1A1A] group-hover:text-white'
                       }`}
                     >
                       {outlet.name}
                     </div>
-                  </button>
+                  </a>
                 );
               })}
             </div>
@@ -146,12 +149,24 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
               
-              <div className="absolute bottom-6 left-6 right-6 text-white">
-                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm text-[#1A1A1A] text-[10px] uppercase tracking-widest font-bold mb-2">
-                  <span>Selected Sanctuary</span>
+              <div className="absolute bottom-6 left-6 right-6 text-white flex items-end justify-between">
+                <div>
+                  <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm text-[#1A1A1A] text-[10px] uppercase tracking-widest font-bold mb-2">
+                    <span>Selected Sanctuary</span>
+                  </div>
+                  <h3 className="font-serif text-3xl font-semibold">{activeOutlet.name}</h3>
+                  <p className="text-sm text-[#E8E4DB]">{activeOutlet.tagline}</p>
                 </div>
-                <h3 className="font-serif text-3xl font-semibold">{activeOutlet.name}</h3>
-                <p className="text-sm text-[#E8E4DB]">{activeOutlet.tagline}</p>
+
+                <a
+                  href={activeOutlet.gmapUrl || `https://maps.google.com/?q=Mayflower+${encodeURIComponent(activeOutlet.name)}+Chennai`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden sm:flex items-center space-x-1.5 px-4 py-2 rounded-full bg-white/90 hover:bg-white text-[#1A1A1A] text-xs font-bold transition shadow"
+                >
+                  <Navigation className="w-3.5 h-3.5 text-[#5A5A40]" />
+                  <span>Google Maps ↗</span>
+                </a>
               </div>
             </div>
 
@@ -181,6 +196,15 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
                     <span>Address</span>
                   </span>
                   <p className="text-[#1A1A1A] font-medium">{activeOutlet.address}</p>
+                  <a
+                    href={activeOutlet.gmapUrl || `https://maps.google.com/?q=Mayflower+${encodeURIComponent(activeOutlet.name)}+Chennai`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1 text-xs text-[#5A5A40] hover:text-[#1A1A1A] hover:underline font-bold pt-1"
+                  >
+                    <span>View on Google Maps</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
 
                 <div className="space-y-1">
@@ -217,79 +241,20 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
                 </button>
 
                 <a
-                  href={`https://maps.google.com/?q=Mayflower+${encodeURIComponent(activeOutlet.name)}+Chennai`}
+                  href={activeOutlet.gmapUrl || `https://maps.google.com/?q=Mayflower+${encodeURIComponent(activeOutlet.name)}+Chennai`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full sm:w-auto px-6 py-3.5 rounded-full border border-[#1A1A1A] text-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white text-[11px] uppercase tracking-widest font-bold transition-all flex items-center justify-center space-x-2"
                 >
                   <Navigation className="w-4 h-4" />
-                  <span>Get Directions</span>
+                  <span>Get Google Maps Directions</span>
+                  <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
 
             </div>
           </div>
 
-        </div>
-
-        {/* 4 Cards Grid View */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {OUTLETS.map((outlet) => {
-            const isCurrent = outlet.id === selectedOutletId;
-            return (
-              <div
-                key={outlet.id}
-                onClick={() => setSelectedOutletId(outlet.id)}
-                className={`p-6 rounded-[24px] transition-all duration-300 cursor-pointer flex flex-col justify-between ${
-                  isCurrent
-                    ? 'bg-[#1A1A1A] text-[#FAF7F2] shadow-xl scale-[1.02]'
-                    : 'bg-[#F5F1EB] text-[#1A1A1A] hover:border-[#5A5A40]/40 border border-[#E8E4DB]'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                        isCurrent ? 'bg-[#5A5A40] text-white' : 'bg-[#1A1A1A] text-white'
-                      }`}
-                    >
-                      <MapPin className="w-4 h-4" />
-                    </div>
-                    <span
-                      className={`text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full ${
-                        isCurrent ? 'bg-white/20 text-[#E8E4DB]' : 'bg-[#E8E4DB] text-[#5A5A40]'
-                      }`}
-                    >
-                      Chennai
-                    </span>
-                  </div>
-
-                  <h4 className="font-serif text-xl font-semibold mb-1">{outlet.name}</h4>
-                  <p
-                    className={`text-xs mb-3 line-clamp-1 ${
-                      isCurrent ? 'text-[#D1CDBC]' : 'text-[#5A5A40]'
-                    }`}
-                  >
-                    {outlet.tagline}
-                  </p>
-                  <p
-                    className={`text-xs line-clamp-2 leading-relaxed ${
-                      isCurrent ? 'text-[#FAF7F2]/80' : 'text-[#4A4A4A]'
-                    }`}
-                  >
-                    {outlet.address}
-                  </p>
-                </div>
-
-                <div className="pt-4 mt-4 border-t border-current/15 flex items-center justify-between text-xs font-medium">
-                  <span className={isCurrent ? 'text-[#E8E4DB]' : 'text-[#5A5A40]'}>
-                    {outlet.hours.split('(')[0]}
-                  </span>
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </div>
-            );
-          })}
         </div>
 
       </div>
