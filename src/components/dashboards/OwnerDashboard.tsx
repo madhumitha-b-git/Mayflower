@@ -33,8 +33,7 @@ interface ReservationRow {
 
 interface FeedbackRow {
   id: string;
-  name: string;
-  email: string | null;
+  customer_name: string;
   message: string;
   rating: number | null;
   created_at: string;
@@ -77,24 +76,24 @@ export const OwnerDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
     setIsRefreshing(true);
     setError(null);
     try {
-      const today = new Date().toISOString().split('T')[0];
-
-      const [outletsRes, reservationsRes, feedbackRes, escalationsRes, kpiRes] = await Promise.all([
+      const [outletsRes, reservationsRes, feedbackRes, escalationsRes] = await Promise.all([
         supabase
           .from('outlets')
           .select('id, name, slug, badge, area, tables_count, covers_count, is_active, petpooja_id')
           .order('created_at', { ascending: true }),
 
+        // Pull reservations from both sources:
+        // 1. normalized reservations table
+        // 2. JSONB arrays inside user_profiles for legacy/customer-made bookings
         supabase
           .from('reservations')
           .select('id, booking_code, guests, reservation_date, time_slot, status, outlet, booked_at')
-          .gte('reservation_date', today)
           .order('reservation_date', { ascending: true })
-          .limit(20),
+          .limit(50),
 
         supabase
           .from('feedback')
-          .select('id, name, email, message, rating, created_at, outlet')
+          .select('id, message, rating, created_at, outlet, user_profiles(name)')
           .order('created_at', { ascending: false })
           .limit(10),
 
@@ -104,24 +103,63 @@ export const OwnerDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
           .eq('status', 'open')
           .order('created_at', { ascending: false })
           .limit(10),
-
-        supabase
-          .from('reservations')
-          .select('status', { count: 'exact' })
-          .gte('reservation_date', today),
       ]);
 
       if (outletsRes.error) throw new Error(outletsRes.error.message);
       if (reservationsRes.error) throw new Error(reservationsRes.error.message);
-      if (feedbackRes.error) throw new Error(feedbackRes.error.message);
 
       setOutlets((outletsRes.data ?? []) as OutletRow[]);
-      setReservations((reservationsRes.data ?? []) as unknown as ReservationRow[]);
-      setFeedback((feedbackRes.data ?? []) as unknown as FeedbackRow[]);
+
+      // Merge normalized reservations table rows
+      const tableReservations: ReservationRow[] = (reservationsRes.data ?? []) as unknown as ReservationRow[];
+
+      // Also pull reservations stored as JSONB in user_profiles (customer-made bookings)
+      const { data: profilesWithRes } = await supabase
+        .from('user_profiles')
+        .select('name, reservations')
+        .eq('role', 'Customer')
+        .neq('reservations', '[]');
+
+      const jsonbReservations: ReservationRow[] = [];
+      for (const profile of profilesWithRes ?? []) {
+        const arr = Array.isArray(profile.reservations) ? profile.reservations : [];
+        for (const r of arr) {
+          jsonbReservations.push({
+            id: r.id ?? r.bookingCode,
+            booking_code: r.bookingCode ?? r.booking_code ?? '—',
+            guests: r.guests ?? 1,
+            reservation_date: r.date ?? r.reservation_date ?? '',
+            time_slot: r.timeSlot ?? r.time_slot ?? '',
+            status: r.status ?? 'Confirmed',
+            outlet: r.outlet ?? null,
+            booked_at: r.bookedAt ?? r.booked_at ?? '',
+          });
+        }
+      }
+
+      // Deduplicate by booking_code, prefer table rows over JSONB
+      const seen = new Set(tableReservations.map(r => r.booking_code));
+      const merged = [
+        ...tableReservations,
+        ...jsonbReservations.filter(r => !seen.has(r.booking_code)),
+      ].sort((a, b) => a.reservation_date.localeCompare(b.reservation_date));
+
+      setReservations(merged);
+
+      // Map feedback — join returns user_profiles as nested object
+      const feedbackMapped: FeedbackRow[] = ((feedbackRes.data ?? []) as any[]).map(fb => ({
+        id: fb.id,
+        customer_name: fb.user_profiles?.name ?? 'Guest',
+        message: fb.message,
+        rating: fb.rating,
+        created_at: fb.created_at,
+        outlet: fb.outlet,
+      }));
+      if (!feedbackRes.error) setFeedback(feedbackMapped);
       if (!escalationsRes.error) setEscalations((escalationsRes.data ?? []) as unknown as EscalationRow[]);
 
-      const allRes = reservationsRes.data ?? [];
-      const pending = allRes.filter((r: any) => r.status === 'Pending' || r.status === 'pending').length;
+      const allRes = merged;
+      const pending = allRes.filter((r) => r.status === 'Pending' || r.status === 'pending').length;
       setKpi({
         totalReservations: allRes.length,
         pendingReservations: pending,
@@ -509,7 +547,7 @@ export const OwnerDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
                   <div key={fb.id} className="p-space-md bg-surface-container-low rounded flex flex-col gap-space-2xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-space-sm">
-                        <span className="font-body-sm text-body-sm text-primary font-bold">{fb.name}</span>
+                        <span className="font-body-sm text-body-sm text-primary font-bold">{fb.customer_name}</span>
                         {fb.outlet && (
                           <span className="font-caption text-caption text-on-surface-variant">· {fb.outlet}</span>
                         )}
