@@ -61,9 +61,9 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
     seatingArea: 'Garden',
     selectedTable: null,
     timeSlot: '7:30 PM',
-    guestName: '',
-    guestPhone: '',
-    guestEmail: '',
+    guestName: currentUser?.name ?? '',
+    guestPhone: currentUser?.phone ?? '',
+    guestEmail: currentUser?.email ?? '',
     dietaryPreferences: 'Standard / No Restrictions',
     specialOccasion: 'Casual Dining',
     specialNotes: '',
@@ -78,6 +78,18 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
   useEffect(() => {
     setLiveTables(getStoredTables());
   }, [reservation.step]);
+
+  // Sync guest details if currentUser loads after initial render
+  useEffect(() => {
+    if (currentUser) {
+      setReservation(prev => ({
+        ...prev,
+        guestName: prev.guestName || currentUser.name || '',
+        guestPhone: prev.guestPhone || currentUser.phone || '',
+        guestEmail: prev.guestEmail || currentUser.email || '',
+      }));
+    }
+  }, [currentUser?.id]);
 
   const loadSavedBookings = () => {
     setSavedBookingsList(currentUser?.reservations ?? []);

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Menu as MenuIcon, X, Calendar, MapPin, Phone, ArrowLeft, Gift, Star, User } from 'lucide-react';
+import { Menu as MenuIcon, X, Calendar, MapPin, Phone, ArrowLeft, Gift, Star, User, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface HeaderProps {
-  activeView: 'website' | 'reservations';
+  activeView: 'website' | 'reservations' | 'dashboard';
   currentUser: UserProfile | null;
   onNavigate: (sectionId: string) => void;
   onOpenReservations: () => void;
@@ -11,6 +11,8 @@ interface HeaderProps {
   onOpenFranchise?: () => void;
   onOpenAuth: () => void;
   onOpenLoyalty: () => void;
+  onOpenDashboard: () => void;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,14 +23,28 @@ export const Header: React.FC<HeaderProps> = ({
   onBackToWebsite,
   onOpenFranchise,
   onOpenAuth,
-  onOpenLoyalty
+  onOpenLoyalty,
+  onOpenDashboard,
+  onLogout,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const isStaff = currentUser && currentUser.role && currentUser.role !== 'Customer';
 
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const handleUserIconClick = () => {
-    if (isStaff) return;
-    if (currentUser) onOpenLoyalty();
+    if (currentUser) setProfileMenuOpen((p) => !p);
     else onOpenAuth();
   };
   const [activeSection, setActiveSection] = useState<string>('hero');
@@ -238,19 +254,59 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>Reserve Table</span>
                 </button>
 
-                {/* Isolated Far-Right User Profile Icon (Colorless before login, Colored green + star after login) */}
+                {/* User Profile Area */}
                 {currentUser ? (
-                  <button
-                    onClick={handleUserIconClick}
-                    title={isStaff ? `${currentUser.role} Dashboard` : `${currentUser.name} (${currentUser.rewardPoints} PTS)`}
-                    className="relative w-10 h-10 rounded-full bg-[#1E3932] hover:bg-[#162F29] border-2 border-[#00754A] text-white shadow-md flex items-center justify-center cursor-pointer transition-all hover:scale-105 ml-1.5 shrink-0"
-                    aria-label="User Account"
-                  >
-                    <User className="w-4.5 h-4.5 text-white" />
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#F59E0B] text-black text-[9px] font-black flex items-center justify-center shadow-xs">
-                      ★
-                    </span>
-                  </button>
+                  <div className="relative ml-1.5" ref={profileMenuRef}>
+                    <button
+                      onClick={handleUserIconClick}
+                      className="flex items-center space-x-2 pl-2 pr-3 py-1.5 rounded-full bg-[#1E3932] hover:bg-[#162F29] border border-[#00754A]/60 text-white shadow-md transition-all hover:scale-105 cursor-pointer"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-[#00754A] flex items-center justify-center font-bold text-sm shrink-0">
+                        {currentUser.name?.[0]?.toUpperCase() ?? 'U'}
+                      </div>
+                      <div className="flex flex-col text-left leading-tight">
+                        <span className="text-[11px] font-bold text-white truncate max-w-[90px]">{currentUser.name}</span>
+                        <span className="text-[9px] font-semibold text-[#6FCF97] uppercase tracking-wider">{currentUser.role ?? 'Customer'}</span>
+                      </div>
+                      <ChevronDown className={`w-3.5 h-3.5 text-[#6FCF97] transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown */}
+                    {profileMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-xl border border-[#E8E4DB] overflow-hidden z-50">
+                        <div className="px-4 py-3 bg-[#F5F3EF] border-b border-[#E8E4DB]">
+                          <p className="text-xs font-bold text-[#1A1A1A] truncate">{currentUser.name}</p>
+                          <p className="text-[10px] text-[#5A5A40] truncate">{currentUser.email}</p>
+                          <span className="inline-block mt-1 text-[9px] font-bold uppercase tracking-wider bg-[#2D4030] text-white px-2 py-0.5 rounded-full">{currentUser.role ?? 'Customer'}</span>
+                        </div>
+                        <div className="py-1">
+                          <button
+                            onClick={() => { setProfileMenuOpen(false); onOpenDashboard(); }}
+                            className="w-full flex items-center space-x-2.5 px-4 py-2.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F5F3EF] transition-colors cursor-pointer"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-[#2D4030]" />
+                            <span>My Dashboard</span>
+                          </button>
+                          {currentUser.role === 'Customer' && (
+                            <button
+                              onClick={() => { setProfileMenuOpen(false); onOpenLoyalty(); }}
+                              className="w-full flex items-center space-x-2.5 px-4 py-2.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F5F3EF] transition-colors cursor-pointer"
+                            >
+                              <Star className="w-4 h-4 text-[#F59E0B]" />
+                              <span>Rewards ({currentUser.rewardPoints} pts)</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setProfileMenuOpen(false); onLogout(); }}
+                            className="w-full flex items-center space-x-2.5 px-4 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer border-t border-[#E8E4DB] mt-1"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Logout</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <button
                     onClick={onOpenAuth}
@@ -270,13 +326,13 @@ export const Header: React.FC<HeaderProps> = ({
             {currentUser ? (
               <button
                 onClick={handleUserIconClick}
-                className="w-9 h-9 rounded-full bg-[#1E3932] border-2 border-[#00754A] text-white flex items-center justify-center shadow-xs relative"
-                aria-label="User Dashboard"
+                className="flex items-center space-x-1.5 pl-1.5 pr-2.5 py-1 rounded-full bg-[#1E3932] border border-[#00754A]/60 text-white shadow-xs"
+                aria-label="User Profile"
               >
-                <User className="w-4 h-4 text-white" />
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#F59E0B] text-black text-[8px] font-black flex items-center justify-center">
-                  ★
-                </span>
+                <div className="w-6 h-6 rounded-full bg-[#00754A] flex items-center justify-center font-bold text-xs">
+                  {currentUser.name?.[0]?.toUpperCase() ?? 'U'}
+                </div>
+                <span className="text-[10px] font-bold text-white">{currentUser.role ?? 'Customer'}</span>
               </button>
             ) : (
               <button
@@ -337,13 +393,22 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="pt-3 space-y-2">
             {currentUser ? (
-              <button
-                onClick={() => { setMobileMenuOpen(false); handleUserIconClick(); }}
-                className="w-full py-3.5 rounded-full bg-[#2D4030] text-white text-center text-[11px] uppercase tracking-widest font-bold flex items-center justify-center space-x-2 shadow-sm"
-              >
-                <Star className="w-4 h-4 fill-[#F59E0B] text-[#F59E0B]" />
-                <span>{isStaff ? `${currentUser.role} Dashboard` : `Rewards (${currentUser.rewardPoints} PTS)`}</span>
-              </button>
+              <>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); onOpenDashboard(); }}
+                  className="w-full py-3.5 rounded-full bg-[#2D4030] text-white text-center text-[11px] uppercase tracking-widest font-bold flex items-center justify-center space-x-2 shadow-sm"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>My Dashboard ({currentUser.role ?? 'Customer'})</span>
+                </button>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); onLogout(); }}
+                  className="w-full py-3 rounded-full bg-red-50 border border-red-200 text-red-600 text-center text-[11px] uppercase tracking-widest font-bold flex items-center justify-center space-x-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout</span>
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => {

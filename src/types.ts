@@ -100,7 +100,7 @@ export type LoyaltyTier = 'Green' | 'Gold' | 'Sanctuary VIP';
 
 export interface PointTransaction {
   id: string;
-  type: 'earned_signup' | 'earned_visit' | 'earned_dining' | 'redeemed_giftcard';
+  type: 'earned_signup' | 'earned_visit' | 'earned_dining' | 'redeemed_giftcard' | 'cancelled_reservation';
   points: number;
   description: string;
   date: string;

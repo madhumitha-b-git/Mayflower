@@ -13,33 +13,37 @@ import { Modals } from './components/Modals';
 import { AuthModal } from './components/AuthModal';
 import { LoyaltyDashboardModal } from './components/LoyaltyDashboardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { RoleDashboard } from './components/dashboards/RoleDashboard';
 import { ActiveModalType, UserProfile } from './types';
 import { WelcomeEmailData } from './data/userStorage';
 import { fetchUserProfile, getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
+export type AppView = 'website' | 'reservations' | 'dashboard';
+
 export default function App() {
-  const [activeView, setActiveView] = useState<'website' | 'reservations'>('website');
+  const [activeView, setActiveView] = useState<AppView>('website');
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
   const [targetOutlet, setTargetOutlet] = useState<string>('Poes Garden');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [welcomeEmail, setWelcomeEmail] = useState<WelcomeEmailData | null>(null);
 
-  // Load user session from Supabase on mount
+  // Restore session on mount
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     getSupabaseCurrentUser().then((user) => {
       if (user) setCurrentUser(user);
     }).catch(() => {});
 
-    // Keep session in sync when auth state changes (e.g. token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setCurrentUser(null);
+        setActiveView('website');
       } else {
         fetchUserProfile(session.user.id).then(setCurrentUser).catch(() => {});
       }
     });
+
     const profileChannel = supabase
       .channel('current-customer-profile')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, (payload) => {
@@ -47,6 +51,7 @@ export default function App() {
         if (userId) fetchUserProfile(userId).then((user) => user && setCurrentUser(user)).catch(() => {});
       })
       .subscribe();
+
     return () => {
       subscription.unsubscribe();
       supabase.removeChannel(profileChannel);
@@ -57,18 +62,13 @@ export default function App() {
     setActiveView('website');
     setTimeout(() => {
       const element = document.getElementById(sectionId);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      if (element) element.scrollIntoView({ behavior: 'smooth' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 50);
   };
 
   const handleOpenReservations = (outletName?: string) => {
-    if (outletName) {
-      setTargetOutlet(outletName);
-    }
+    if (outletName) setTargetOutlet(outletName);
     setActiveView('reservations');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -78,14 +78,15 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleOpenDashboard = () => {
+    setActiveView('dashboard');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLoginSuccess = (user: UserProfile, emailData?: WelcomeEmailData) => {
     setCurrentUser(user);
     if (emailData) setWelcomeEmail(emailData);
     setActiveModal('none');
-    // Force re-render so isStaffRole check triggers immediately
-    if (user.role && user.role !== 'Customer') {
-      window.scrollTo({ top: 0 });
-    }
   };
 
   const handleLogout = () => {
@@ -93,16 +94,27 @@ export default function App() {
     setCurrentUser(null);
     setWelcomeEmail(null);
     setActiveModal('none');
+    setActiveView('website');
   };
 
   const handleUpdateUser = (updatedUser: UserProfile) => {
     setCurrentUser(updatedUser);
   };
 
-  // Show role-specific dashboard for staff users — full page takeover
+  // Dashboard view — full page, with back-to-website handled inside RoleDashboard
+  if (activeView === 'dashboard' && currentUser) {
+    return (
+      <RoleDashboard
+        user={currentUser}
+        onLogout={handleLogout}
+        onBackToWebsite={handleBackToWebsite}
+        onOpenReservations={() => handleOpenReservations()}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1A1A1A] selection:bg-[#D1CDBC] selection:text-[#1A1A1A] pb-16 md:pb-0">
-      {/* Sticky Top Navigation Bar */}
       <Header
         activeView={activeView}
         currentUser={currentUser}
@@ -112,49 +124,36 @@ export default function App() {
         onOpenFranchise={() => setActiveModal('franchise')}
         onOpenAuth={() => setActiveModal('auth')}
         onOpenLoyalty={() => setActiveModal('loyalty')}
+        onOpenDashboard={handleOpenDashboard}
+        onLogout={handleLogout}
       />
 
-      {/* Main Content Area: Website or Conversational Reservation Desk */}
       <main className="flex-1">
         {activeView === 'website' ? (
           <>
-            {/* Rotating Hero Carousel Gallery */}
             <HeroCarousel
               onPlanVisit={() => handleOpenReservations()}
               onExploreMenu={() => scrollToSection('menu')}
             />
-
-            {/* About Mayflower Philosophy */}
             <AboutSection />
-
-            {/* Mayflower Visual Feast Gallery */}
             <MayflowerGallery />
-
-            {/* Global Fusion Repertoire Menu */}
             <MenuSection
               onPlanVisit={() => handleOpenReservations()}
               onRequestCellar={() => setActiveModal('cellar')}
             />
-
-            {/* Mayflower Moment Cards Gifting & Points Redemption Section */}
             <MayflowerMomentCards
               currentUser={currentUser}
               onOpenAuth={() => setActiveModal('auth')}
               onUpdateUser={handleUpdateUser}
             />
-
-            {/* Chennai Sanctuaries & Interactive Map */}
             <OutletsSection
               onReserveOutlet={(outletName) => handleOpenReservations(outletName)}
             />
-
-            {/* Concierge & Contact Pathways */}
             <ContactSection
               onOpenModal={(modalType) => setActiveModal(modalType)}
             />
           </>
         ) : (
-          /* Conversational Digital Reservation Desk: Plan Your Visit */
           <PlanYourVisit
             initialOutlet={targetOutlet}
             currentUser={currentUser}
@@ -165,26 +164,22 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
       <Footer
         onNavigate={scrollToSection}
         onPlanVisit={() => handleOpenReservations()}
       />
 
-      {/* Interactive General Modals */}
       <Modals
         activeModal={activeModal}
         onClose={() => setActiveModal('none')}
       />
 
-      {/* Email-Only Authentication / OTP Modal */}
       <AuthModal
         isOpen={activeModal === 'auth'}
         onClose={() => setActiveModal('none')}
         onLoginSuccess={handleLoginSuccess}
       />
 
-      {/* Starbucks-Style Loyalty & User Account Dashboard Modal */}
       <LoyaltyDashboardModal
         isOpen={activeModal === 'loyalty'}
         user={currentUser}
@@ -194,7 +189,6 @@ export default function App() {
         onNavigateToGiftCards={() => scrollToSection('moment-cards')}
       />
 
-      {/* Mobile Bottom Floating Navigation Dock */}
       <MobileBottomNav
         activeView={activeView}
         onNavigate={scrollToSection}

@@ -111,8 +111,7 @@ export const fetchUserProfile = async (userId: string): Promise<UserProfile | nu
     name: data.name,
     email: data.email,
     phone: data.phone ?? '',
-    // This public website is a customer portal. Staff use the separate back-office.
-    role: 'Customer' as UserRole,
+    role: (data.role as UserRole) ?? 'Customer',
     rewardPoints: data.reward_points ?? 0,
     tier: (data.tier as LoyaltyTier) ?? 'Green',
     totalVisits: data.total_visits ?? 0,
@@ -127,19 +126,37 @@ export const addReservationForCurrentUser = async (
   reservation: UserReservationRecord
 ): Promise<AuthResult> => {
   const bookedAt = reservation.bookedAt;
-  const reservationBonus: PointTransaction = {
+  const BONUS_POINTS = 300;
+
+  // 1. Insert into reservations table using actual DB column names
+  const { error: resError } = await supabase.from('reservations').insert({
+    customer_id: user.id,
+    booking_code: reservation.bookingCode,
+    outlet: reservation.outlet,
+    reservation_date: reservation.date,
+    time_slot: reservation.timeSlot,
+    guests: reservation.guests,
+    status: reservation.status,
+  });
+  if (resError) return { success: false, message: resError.message };
+
+  // 2. Credit loyalty points and append transaction to user_profiles
+  const newTransaction: PointTransaction = {
     id: `reservation-${reservation.id}`,
     type: 'earned_visit',
-    points: 300,
-    description: `Seat reservation bonus (${reservation.outlet} - ${reservation.bookingCode})`,
+    points: BONUS_POINTS,
+    description: `Reservation bonus (${reservation.outlet} - ${reservation.bookingCode})`,
     date: bookedAt,
   };
-  const { error } = await supabase.rpc('create_customer_reservation', {
-    reservation_record: reservation,
-    transaction_record: reservationBonus,
-  });
+  const updatedTransactions = [...(user.transactions ?? []), newTransaction];
+  const updatedPoints = (user.rewardPoints ?? 0) + BONUS_POINTS;
 
-  if (error) return { success: false, message: error.message };
+  await supabase.from('user_profiles').update({
+    reward_points: updatedPoints,
+    transactions: updatedTransactions,
+    reservations: [...(user.reservations ?? []), reservation],
+  }).eq('id', user.id);
+
   const updatedUser = await fetchUserProfile(user.id);
   return updatedUser
     ? { success: true, user: updatedUser }
