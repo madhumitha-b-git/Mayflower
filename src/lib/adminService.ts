@@ -12,6 +12,40 @@ export interface ReservationRecord { id: string; bookingCode: string; outlet: st
 export interface TransactionRecord { id: string; type: string; points: number; description: string; date: string; }
 export interface CustomerRecord { id: string; name: string; email: string; phone: string; reward_points: number; tier: string; joined_date: string; created_at: string; reservations: ReservationRecord[]; transactions: TransactionRecord[]; dietary_preferences: string[]; allergies: string | null; preferred_seating: string | null; birthday: string | null; anniversary: string | null; notes: string | null; total_visits: number; total_reservations: number; total_spent: number; average_spend: number; last_visit_date: string | null; loyalty_tier: string; loyalty_points: number; preferred_outlet_name: string | null; last_visit_outlet_name: string | null; }
 const staffRoles: UserRole[] = ['Owner', 'Admin', 'Manager', 'Chef', 'HR', 'Accountant'];
+const isMissingTableError = (message?: string | null) => {
+  const normalized = (message ?? '').toLowerCase();
+  return normalized.includes('could not find the table')
+    || normalized.includes('does not exist')
+    || (normalized.includes('relation') && normalized.includes('does not exist'))
+    || normalized.includes('schema cache');
+};
+const requireData = async <T>(request: PromiseLike<{ data: T[] | null; error: { message: string } | null }>, source: string): Promise<T[]> => {
+  const { data, error } = await request;
+  if (error) {
+    if (isMissingTableError(error.message)) {
+      console.warn(`Admin dashboard skipped missing ${source} table because it is not present in the current Supabase schema cache.`);
+      return [];
+    }
+    throw new Error(`${source}: ${error.message}`);
+  }
+  return data ?? [];
+};
+const loadFranchiseLeads = async (): Promise<any[]> => {
+  const candidateTables = ['franchise_leads', 'franchise_enquiries', 'franchise_inquiries'] as const;
+  let lastError: string | null = null;
+  for (const tableName of candidateTables) {
+    const { data, error } = await supabase.from(tableName).select('*').order('created_at', { ascending: false }).limit(100);
+    if (!error) return data ?? [];
+    if (!isMissingTableError(error.message)) {
+      throw new Error(`franchise enquiries: ${error.message}`);
+    }
+    lastError = error.message;
+  }
+  if (lastError) {
+    console.warn(`Admin dashboard franchise enquiries table not found in Supabase schema cache (${candidateTables.join(', ')}).`);
+  }
+  return [];
+};
 
 export const fetchAllStaff = async (): Promise<StaffMember[]> => {
   const { data, error } = await supabase.from('user_profiles').select('id,name,email,mobile,role,outlet,is_active,joined_date,created_at,staffs(employee_code,department,employment_type,shift_timing,date_of_joining,outlets(name))').in('role', staffRoles).order('created_at', { ascending: false });
@@ -26,9 +60,16 @@ export const fetchAllCustomers = async (): Promise<CustomerRecord[]> => {
 export const fetchOutlets = async () => { const { data, error } = await supabase.from('outlets').select('id,name,slug,badge,area,petpooja_id,tables_count,covers_count,is_active,opening_time,closing_time').order('created_at', { ascending: true }); if (error) throw new Error(error.message); return data ?? []; };
 
 export const fetchAdminOperationalData = async (): Promise<AdminOperationalData> => {
-  const safe = async (request: any, source: string) => { const { data, error } = await request; if (error) { console.warn(`Admin dashboard could not load ${source}: ${error.message}`); return []; } return data ?? []; };
   const [staff, outlets, tables, reservations, checklists, tasks, feedback, franchiseLeads, auditLogs] = await Promise.all([
-    fetchAllStaff(), safe(supabase.from('outlets').select('*').order('name'), 'outlets'), safe(supabase.from('tables').select('*').limit(100), 'tables'), safe(supabase.from('reservations').select('*').order('reservation_date', { ascending: false }).limit(100), 'reservations'), safe(supabase.from('checklists').select('*').order('created_at', { ascending: false }).limit(100), 'checklists'), safe(supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(100), 'tasks'), safe(supabase.from('feedback').select('*').order('created_at', { ascending: false }).limit(100), 'feedback'), safe(supabase.from('franchise_leads').select('*').order('created_at', { ascending: false }).limit(100), 'franchise enquiries'), safe(supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100), 'activity records')
+    fetchAllStaff(),
+    requireData(supabase.from('outlets').select('*').order('name'), 'outlets'),
+    requireData(supabase.from('tables').select('*').limit(100), 'tables'),
+    requireData(supabase.from('reservations').select('*').order('reservation_date', { ascending: false }).limit(100), 'reservations'),
+    requireData(supabase.from('checklists').select('*').order('created_at', { ascending: false }).limit(100), 'checklists'),
+    requireData(supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(100), 'tasks'),
+    requireData(supabase.from('feedback').select('*').order('created_at', { ascending: false }).limit(100), 'feedback'),
+    loadFranchiseLeads(),
+    requireData(supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100), 'activity records')
   ]);
   return { staff, outlets, tables, reservations, checklists, tasks, feedback, franchiseLeads, auditLogs };
 };
